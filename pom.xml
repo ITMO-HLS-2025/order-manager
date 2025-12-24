@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>ru.itmo.hls</groupId>
-    <artifactId>order-service</artifactId>
+    <artifactId>order-manager</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>order-service</name>
-    <description>order-service</description>
+    <name>order-manager</name>
+    <description>order-manager</description>
     <url/>
     <licenses>
         <license/>
