@@ -7,16 +7,19 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import ru.itmo.hls.ordermanager.client.SeatFeignClient
 import ru.itmo.hls.ordermanager.dto.OrderDto
 import ru.itmo.hls.ordermanager.dto.OrderPayload
+import ru.itmo.hls.ordermanager.dto.SeatPriceDto
 import ru.itmo.hls.ordermanager.dto.TicketDto
 import ru.itmo.hls.ordermanager.entity.OrderStatus
 import ru.itmo.hls.ordermanager.entity.TicketStatus
+import ru.itmo.hls.ordermanager.exception.NotFreeSeatException
 import ru.itmo.hls.ordermanager.exception.OrderNotFoundException
+import ru.itmo.hls.ordermanager.mapper.toDto
+import ru.itmo.hls.ordermanager.mapper.toEntity
 import ru.itmo.hls.ordermanager.repository.OrderRepository
 import java.time.LocalDateTime
-import kotlin.Int
-import kotlin.Long
 import kotlin.collections.map
 import kotlin.collections.sumOf
 import kotlin.collections.toMutableList
@@ -25,7 +28,8 @@ import kotlin.collections.toMutableList
 @Transactional
 open class OrderService(
     private val orderRepository: OrderRepository,
-    private val ticketService: TicketService
+    private val ticketService: TicketService,
+    private val seatFeignClient: SeatFeignClient
 ) {
 
     private val log: Logger = LoggerFactory.getLogger(OrderService::class.java)
@@ -33,18 +37,17 @@ open class OrderService(
     open fun reserveTickets(orderPayload: OrderPayload): OrderDto {
         log.info("Резервирование билетов для шоу id={} и мест {}", orderPayload.showId, orderPayload.seatIds)
 
-        val seatsPrice = seatPriceService.findSeatsByShowIdAndIdIn(orderPayload.showId, orderPayload.seatIds)
+        val seatsPrice = seatFeignClient.getSeat(orderPayload.showId, orderPayload.seatIds)
         val tickets = ticketService.findAllBySeatIdInAndShowId(
-            seatsPrice.map { it.seat.id },
-            orderPayload.showId,
-            TicketStatus.CANCELLED
+            seatsPrice.map { it.id },
+            orderPayload.showId
         )
         if (tickets.isNotEmpty()) {
             log.warn("Невозможно создать заказ — места заняты: {}", orderPayload.seatIds)
             throw NotFreeSeatException("Невозможно создать заказ -- есть занятые места")
         }
 
-        val ticketsEntity = seatsPrice.map { it.toEntity() }.toMutableList()
+        val ticketsEntity = seatsPrice.map { it.toEntity(orderPayload.showId) }.toMutableList()
         val sumOf = seatsPrice.sumOf { it.price }
 
         val order = orderPayload.toEntity(ticketsEntity, sumOf)
@@ -121,15 +124,34 @@ open class OrderService(
         }
 
         val pageable = PageRequest.of(page, size)
-        val projectionPage = ticketService.findTicketsByOrderId(orderId, pageable)
+        val ticketPage = ticketService.findAllByOrder(orderId, pageable)
+        if (ticketPage.isEmpty) {
+            log.info("Билеты не найдены для заказа {}", orderId)
+            return Page.empty<TicketDto>(pageable)
+        }
 
-        log.info("Найдено билетов: {} для заказа {}", projectionPage.totalElements, orderId)
-        return projectionPage.map {
+        val showIds = ticketPage.content.map { it.showId }.distinct()
+        if (showIds.size != 1) {
+            throw IllegalStateException("Tickets from multiple shows in one order: $showIds")
+        }
+        val showId = showIds.first()
+        val seatIds = ticketPage.content.map { ticket ->
+            ticket.seatId ?: throw IllegalStateException("Ticket ${ticket.id} doesn't have seatId")
+        }
+        val seats = seatFeignClient.getSeat(showId, seatIds)
+        val seatInfoById = seats.associateBy { it.id }
+
+        log.info("Найдено билетов: {} для заказа {}", ticketPage.totalElements, orderId)
+        return ticketPage.map { ticket ->
+            val seatId = ticket.seatId
+                ?: throw IllegalStateException("Ticket ${ticket.id} doesn't have seatId")
+            val seat = seatInfoById[seatId]
+                ?: throw IllegalStateException("Seat info not found for showId=$showId, seatId=$seatId")
             TicketDto(
-                id = it.id,
-                price = it.price,
-                raw = it.rowNumber,
-                number = it.seatNumber
+                id = ticket.id,
+                price = seat.price,
+                raw = seat.raw,
+                number = seat.number
             )
         }
     }

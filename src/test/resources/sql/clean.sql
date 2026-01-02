@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS order_ticket;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS ticket;

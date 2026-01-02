@@ -6,9 +6,3 @@ data class TicketDto(
     val raw: Int,
     val number: Int
 )
-
-data class TicketCreateDto(
-    val price: Int,
-    val raw: Int,
-    val number: Int
-)

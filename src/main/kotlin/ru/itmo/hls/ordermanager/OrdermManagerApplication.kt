@@ -2,10 +2,12 @@ package ru.itmo.hls.ordermanager
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
+import org.springframework.cloud.openfeign.EnableFeignClients
 
 @SpringBootApplication
-class OrderServiceApplication
+@EnableFeignClients
+class OrdermManagerApplication
 
 fun main(args: Array<String>) {
-    runApplication<OrderServiceApplication>(*args)
+    runApplication<OrdermManagerApplication>(*args)
 }

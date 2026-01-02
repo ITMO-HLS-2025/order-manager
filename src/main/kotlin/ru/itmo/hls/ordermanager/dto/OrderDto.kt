@@ -4,16 +4,16 @@ import ru.itmo.hls.ordermanager.entity.OrderStatus
 import java.time.LocalDateTime
 
 
-data class OrderDto (
+data class OrderDto(
     val id: Long,
     val createdAt: LocalDateTime,
     val reservedAt: LocalDateTime?,
     val status: OrderStatus = OrderStatus.RESERVED,
-    val seat : List<SeatDto>,
+    val seatIds: List<Long>,
     val price: Int
-    )
+)
 
 data class OrderPayload(
-    val seatIds : List<Long>,
-    val showId : Long
+    val seatIds: List<Long>,
+    val showId: Long
 )

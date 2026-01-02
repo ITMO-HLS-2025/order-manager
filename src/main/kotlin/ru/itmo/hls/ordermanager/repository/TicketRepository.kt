@@ -1,5 +1,7 @@
 package ru.itmo.hls.ordermanager.repository
 
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
@@ -17,12 +19,14 @@ interface TicketRepository : JpaRepository<Ticket, Long> {
     )
     fun findAllBySeatIdInAndShowId(
         seatIds: Collection<Long>,
-        showId: Long,
-        canceledStatus: TicketStatus
+        showId: Long
     ): List<Ticket>
 
     @Query("from Ticket t  join t.orders o where o.id = :orderId")
     fun findAllByOrder(orderId : Long): List<Ticket>
+
+    @Query("from Ticket t join t.orders o where o.id = :orderId")
+    fun findAllByOrder(orderId: Long, pageable: Pageable): Page<Ticket>
 
 //    @Query(
 //        """
