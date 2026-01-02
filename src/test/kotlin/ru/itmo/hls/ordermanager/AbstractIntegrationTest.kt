@@ -3,14 +3,14 @@ package ru.itmo.hls.ordermanager
 import org.junit.jupiter.api.BeforeEach
 import org.mockito.ArgumentMatchers
 import org.mockito.Mockito
-import org.springframework.boot.test.mock.mockito.MockBean
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import ru.itmo.hls.ordermanager.client.SeatFeignClient
 import ru.itmo.hls.ordermanager.dto.SeatPriceDto
 import ru.itmo.hls.ordermanager.service.PostgresContainerConfig
 
 abstract class AbstractIntegrationTest : PostgresContainerConfig() {
 
-    @MockBean
+    @MockitoBean
     private lateinit var seatFeignClient: SeatFeignClient
 
     @BeforeEach
