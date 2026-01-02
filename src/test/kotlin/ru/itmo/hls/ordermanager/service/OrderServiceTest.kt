@@ -7,7 +7,9 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.jdbc.Sql
+import org.mockito.Mockito.verifyNoInteractions
 import ru.itmo.hls.ordermanager.AbstractIntegrationTest
+import ru.itmo.hls.ordermanager.client.SeatFeignClient
 import ru.itmo.hls.ordermanager.dto.OrderPayload
 import ru.itmo.hls.ordermanager.entity.OrderStatus
 import ru.itmo.hls.ordermanager.entity.TicketStatus
@@ -28,6 +30,9 @@ open class OrderServiceIntegrationTest : AbstractIntegrationTest() {
 
     @Autowired
     private lateinit var ticketRepository: TicketRepository
+
+    @Autowired
+    private lateinit var seatFeignClient: SeatFeignClient
 
     @Test
     @DisplayName("Резервирование билетов — успешный кейс")
@@ -159,5 +164,30 @@ open class OrderServiceIntegrationTest : AbstractIntegrationTest() {
         assertEquals(500, ticket.price)
         assertEquals(1, ticket.raw)
         assertEquals(1, ticket.number)
+    }
+
+    @Test
+    @DisplayName("Получение билетов — пустая страница не вызывает внешний сервис")
+    @Sql(
+        scripts = ["classpath:sql/clean.sql", "classpath:sql/init.sql", "classpath:sql/insert.sql"],
+        executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD
+    )
+    fun getTicketsPageEmpty() {
+        val page = orderService.getTicketsPageByOrderId(orderId = 1L, page = 1, size = 10)
+
+        assertTrue(page.isEmpty)
+        verifyNoInteractions(seatFeignClient)
+    }
+
+    @Test
+    @DisplayName("Получение билетов — ошибка при разных showId в одном заказе")
+    @Sql(
+        scripts = ["classpath:sql/clean.sql", "classpath:sql/init.sql", "classpath:sql/insert-multi-show.sql"],
+        executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD
+    )
+    fun getTicketsPageMixedShows() {
+        assertThrows<IllegalStateException> {
+            orderService.getTicketsPageByOrderId(orderId = 1L, page = 0, size = 10)
+        }
     }
 }
