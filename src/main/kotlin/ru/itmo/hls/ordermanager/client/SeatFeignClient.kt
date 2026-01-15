@@ -5,7 +5,11 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestParam
 import ru.itmo.hls.ordermanager.dto.SeatPriceDto
 
-@FeignClient(name = "seat-manager")
+@FeignClient(
+    name = "theatre-manager",
+    path = "/inner",
+    fallback = SeatFeignClientFallback::class
+)
 interface SeatFeignClient {
     @GetMapping("/seats")
     fun getSeat(

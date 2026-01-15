@@ -155,4 +155,13 @@ open class OrderService(
             )
         }
     }
+
+    open fun getOrderById(orderId: Long): OrderDto {
+        log.info("Получение заказа id={}", orderId)
+
+        val order = orderRepository.findOrderById(orderId)
+            ?: throw OrderNotFoundException("Заказ не найден: id=$orderId")
+        order.tickets = ticketService.findAllByOrder(order.id).toMutableList()
+        return order.toDto()
+    }
 }

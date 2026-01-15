@@ -2,6 +2,8 @@ package ru.itmo.hls.ordermanager.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import reactor.core.publisher.Mono
+import reactor.core.scheduler.Schedulers
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -47,5 +49,12 @@ open class OrderController(
         return ResponseEntity.ok()
             .header("X-Has-Next-Page", resultPage.hasNext().toString())
             .body(resultPage.content)
+    }
+
+    @Operation(summary = "Получение заказа (reactive + JPA)")
+    @GetMapping("/{orderId}")
+    fun getOrderReactive(@PathVariable orderId: Long): Mono<OrderDto> {
+        return Mono.fromCallable { orderService.getOrderById(orderId) }
+            .subscribeOn(Schedulers.boundedElastic())
     }
 }

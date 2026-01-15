@@ -5,9 +5,8 @@ import org.mockito.ArgumentMatchers
 import org.mockito.Mockito
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import ru.itmo.hls.ordermanager.client.SeatFeignClient
-import ru.itmo.hls.ordermanager.dto.SeatPriceDto
 import ru.itmo.hls.ordermanager.service.PostgresContainerConfig
-
+import ru.itmo.hls.ordermanager.dto.SeatPriceDto
 abstract class AbstractIntegrationTest : PostgresContainerConfig() {
 
     @MockitoBean

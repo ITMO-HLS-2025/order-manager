@@ -1,14 +1,12 @@
 INSERT INTO orders (created_at, reserved_at, status, sum_price)
 VALUES
-    (NOW(), NOW() + INTERVAL '60 minutes', 'RESERVED', 900),
-    ( NOW(), NOW() + INTERVAL '60 minutes', 'PAID', 500);
-SELECT setval(pg_get_serial_sequence('orders', 'id'), (SELECT MAX(id) FROM orders));
+    (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + interval '60 minutes', 'RESERVED', 900),
+    (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + interval '60 minutes', 'PAID', 500);
 
 INSERT INTO ticket (show_id, seat_id, status)
 VALUES
-    ( 1, 1, 'RESERVED'),
-    ( 1, 2, 'PAID');
-SELECT setval(pg_get_serial_sequence('ticket', 'id'), (SELECT MAX(id) FROM ticket));
+    (1, 1, 'RESERVED'),
+    (1, 2, 'PAID');
 
 INSERT INTO order_ticket (order_id, ticket_id)
 VALUES

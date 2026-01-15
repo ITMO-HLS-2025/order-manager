@@ -6,10 +6,11 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.TestPropertySource
+import ru.itmo.hls.ordermanager.service.PostgresContainerConfig
 
 @SpringBootTest(classes = [PaginationValidator::class])
 @TestPropertySource(properties = ["spring.application.pagination.max-size=5"])
-class PaginationValidatorTest {
+class PaginationValidatorTest : PostgresContainerConfig() {
 
     @Autowired
     private lateinit var paginationValidator: PaginationValidator

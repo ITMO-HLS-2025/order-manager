@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: "optional:configserver:"
   application:
     name: order-service
     pagination:
@@ -24,6 +26,10 @@ spring:
     baseline-on-migrate: true
     validate-on-migrate: true
     encoding: UTF-8
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
 
   jackson:
     serialization:
@@ -31,6 +37,11 @@ spring:
 
 server:
   port: 8080
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
 
 logging:
   level:

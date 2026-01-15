@@ -12,7 +12,7 @@ open class PostgresContainerConfig {
     companion object {
         @Container
         @JvmStatic
-        private val postgres = PostgreSQLContainer("postgres:16-alpine")
+        private val postgres = PostgreSQLContainer("postgres:16")
             .withDatabaseName("order_db")
             .withUsername("postgres")
             .withPassword("postgres")
