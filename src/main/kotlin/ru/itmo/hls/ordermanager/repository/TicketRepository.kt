@@ -28,6 +28,17 @@ interface TicketRepository : JpaRepository<Ticket, Long> {
     @Query("from Ticket t join t.orders o where o.id = :orderId")
     fun findAllByOrder(orderId: Long, pageable: Pageable): Page<Ticket>
 
+    @Query(
+        """
+        select distinct t.seatId
+        from Ticket t
+        where t.showId = :showId
+          and t.status in :statuses
+          and t.seatId is not null
+    """
+    )
+    fun findSeatIdsByShowIdAndStatusIn(showId: Long, statuses: Collection<TicketStatus>): List<Long>
+
 //    @Query(
 //        """
 //        select t.id AS id,

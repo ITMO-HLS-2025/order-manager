@@ -38,8 +38,13 @@ open class OrderService(
         log.info("Резервирование билетов для шоу id={} и мест {}", orderPayload.showId, orderPayload.seatIds)
 
         val seatsPrice = seatFeignClient.getSeat(orderPayload.showId, orderPayload.seatIds)
+        if (seatsPrice.size != orderPayload.seatIds.size) {
+            throw IllegalArgumentException(
+                "Seat prices not found for showId=${orderPayload.showId}, seats=${orderPayload.seatIds}"
+            )
+        }
         val tickets = ticketService.findAllBySeatIdInAndShowId(
-            seatsPrice.map { it.id },
+            orderPayload.seatIds,
             orderPayload.showId
         )
         if (tickets.isNotEmpty()) {
