@@ -1,6 +1,6 @@
-INSERT INTO orders (created_at, reserved_at, status, sum_price)
+INSERT INTO orders (created_at, reserved_at, status, sum_price, user_id)
 VALUES
-    (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + interval '60 minutes', 'RESERVED', 900);
+    (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + interval '60 minutes', 'RESERVED', 900, 100);
 
 INSERT INTO ticket (show_id, seat_id, status)
 VALUES

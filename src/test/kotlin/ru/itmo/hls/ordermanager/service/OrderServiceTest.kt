@@ -42,7 +42,7 @@ open class OrderServiceIntegrationTest : AbstractIntegrationTest() {
     )
     fun reserveTicketsSuccess() {
         val payload = OrderPayload(showId = 1L, seatIds = listOf(3L))
-        val dto = orderService.reserveTickets(payload)
+        val dto = orderService.reserveTickets(payload, 100L)
 
         assertNotNull(dto.id)
         assertEquals(OrderStatus.RESERVED, dto.status)
@@ -58,7 +58,7 @@ open class OrderServiceIntegrationTest : AbstractIntegrationTest() {
     fun reserveTicketsFailIfOccupied() {
         val payload = OrderPayload(showId = 1L, seatIds = listOf(1L)) // место 1 занято
         assertThrows<NotFreeSeatException> {
-            orderService.reserveTickets(payload)
+            orderService.reserveTickets(payload, 100L)
         }
     }
 
@@ -100,7 +100,7 @@ open class OrderServiceIntegrationTest : AbstractIntegrationTest() {
         order.reservedAt = LocalDateTime.now().plusMinutes(10)
         orderRepository.save(order)
 
-        val dto = orderService.payTickets(1L)
+        val dto = orderService.payTickets(1L, 100L)
         assertEquals(OrderStatus.PAID, dto.status)
         val updatedTickets = ticketRepository.findAll()
         assertTrue(updatedTickets.any { it.status == TicketStatus.PAID })
@@ -118,7 +118,7 @@ open class OrderServiceIntegrationTest : AbstractIntegrationTest() {
         orderRepository.save(order)
 
         assertThrows<IllegalStateException> {
-            orderService.payTickets(1L)
+            orderService.payTickets(1L, 100L)
         }
 
         orderService.cancelExpiredOrders()
@@ -137,7 +137,7 @@ open class OrderServiceIntegrationTest : AbstractIntegrationTest() {
         assertEquals(OrderStatus.PAID, order.status)
 
         assertThrows<IllegalStateException> {
-            orderService.payTickets(2L)
+            orderService.payTickets(2L, 200L)
         }
     }
 
@@ -145,7 +145,7 @@ open class OrderServiceIntegrationTest : AbstractIntegrationTest() {
     @DisplayName("Оплата билета — ошибка, если заказ не найден")
     fun payTicketsNotFound() {
         assertThrows<OrderNotFoundException> {
-            orderService.payTickets(999L)
+            orderService.payTickets(999L, 100L)
         }
     }
 
@@ -156,7 +156,14 @@ open class OrderServiceIntegrationTest : AbstractIntegrationTest() {
         executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD
     )
     fun getTicketsPageByOrderIdSuccess() {
-        val page = orderService.getTicketsPageByOrderId(orderId = 1L, page = 0, size = 10)
+        val page = orderService.getTicketsPageByOrderId(
+            orderId = 1L,
+            page = 0,
+            size = 10,
+            userId = 100L,
+            role = "CUSTOMER",
+            theatreId = null
+        )
 
         assertEquals(1, page.totalElements)
         val ticket = page.content.first()
@@ -173,7 +180,14 @@ open class OrderServiceIntegrationTest : AbstractIntegrationTest() {
         executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD
     )
     fun getTicketsPageEmpty() {
-        val page = orderService.getTicketsPageByOrderId(orderId = 1L, page = 1, size = 10)
+        val page = orderService.getTicketsPageByOrderId(
+            orderId = 1L,
+            page = 1,
+            size = 10,
+            userId = 100L,
+            role = "CUSTOMER",
+            theatreId = null
+        )
 
         assertTrue(page.isEmpty)
         verifyNoInteractions(seatFeignClient)
@@ -187,7 +201,14 @@ open class OrderServiceIntegrationTest : AbstractIntegrationTest() {
     )
     fun getTicketsPageMixedShows() {
         assertThrows<IllegalStateException> {
-            orderService.getTicketsPageByOrderId(orderId = 1L, page = 0, size = 10)
+            orderService.getTicketsPageByOrderId(
+                orderId = 1L,
+                page = 0,
+                size = 10,
+                userId = 100L,
+                role = "CUSTOMER",
+                theatreId = null
+            )
         }
     }
 }

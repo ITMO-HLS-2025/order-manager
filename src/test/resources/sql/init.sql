@@ -3,7 +3,8 @@ CREATE TABLE IF NOT EXISTS orders (
     created_at TIMESTAMP NOT NULL,
     reserved_at TIMESTAMP,
     status VARCHAR(20) NOT NULL,
-    sum_price INT NOT NULL
+    sum_price INT NOT NULL,
+    user_id BIGINT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS ticket (

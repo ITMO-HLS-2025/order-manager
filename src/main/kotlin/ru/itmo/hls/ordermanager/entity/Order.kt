@@ -14,6 +14,8 @@ class Order(
 
     var reservedAt: LocalDateTime? = null,
 
+    var userId: Long,
+
     @Enumerated(EnumType.STRING)
     var status: OrderStatus = OrderStatus.RESERVED,
 
@@ -28,5 +30,5 @@ class Order(
     var tickets: MutableList<Ticket> = mutableListOf()
 )
 {
-    constructor() : this(0, LocalDateTime.now(), null,OrderStatus.RESERVED, 0)
+    constructor() : this(0, LocalDateTime.now(), null, 0, OrderStatus.RESERVED, 0)
 }

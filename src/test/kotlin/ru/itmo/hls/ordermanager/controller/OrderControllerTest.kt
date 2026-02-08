@@ -20,6 +20,7 @@ import ru.itmo.hls.ordermanager.dto.TicketDto
 import ru.itmo.hls.ordermanager.entity.OrderStatus
 import ru.itmo.hls.ordermanager.exception.NotFreeSeatException
 import ru.itmo.hls.ordermanager.exception.OrderNotFoundException
+import ru.itmo.hls.ordermanager.security.JwtClaimsService
 import ru.itmo.hls.ordermanager.service.OrderService
 import java.time.LocalDateTime
 
@@ -36,6 +37,8 @@ class OrderControllerTest {
 
     @MockitoBean
     private lateinit var orderService: OrderService
+    @MockitoBean
+    private lateinit var jwtClaimsService: JwtClaimsService
 
     @Test
     fun reserveTickets() {
@@ -48,11 +51,14 @@ class OrderControllerTest {
             seatIds = listOf(3L),
             price = 900
         )
-        `when`(orderService.reserveTickets(payload)).thenReturn(orderDto)
+        `when`(jwtClaimsService.requireClaims("Bearer token"))
+            .thenReturn(JwtClaimsService.Claims(userId = 100L, role = "CUSTOMER", theatreId = null))
+        `when`(orderService.reserveTickets(payload, 100L)).thenReturn(orderDto)
 
         mockMvc.post("/api/orders/reserve") {
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(payload)
+            header("Authorization", "Bearer token")
         }.andExpect {
             status { isOk() }
             jsonPath("$.id") { value(10) }
@@ -63,13 +69,16 @@ class OrderControllerTest {
     @Test
     fun reserveTicketsConflict() {
         val payload = OrderPayload(showId = 1L, seatIds = listOf(1L))
-        `when`(orderService.reserveTickets(payload)).thenThrow(
+        `when`(jwtClaimsService.requireClaims("Bearer token"))
+            .thenReturn(JwtClaimsService.Claims(userId = 100L, role = "CUSTOMER", theatreId = null))
+        `when`(orderService.reserveTickets(payload, 100L)).thenThrow(
             NotFreeSeatException("Невозможно создать заказ -- есть занятые места")
         )
 
         mockMvc.post("/api/orders/reserve") {
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(payload)
+            header("Authorization", "Bearer token")
         }.andExpect {
             status { isConflict() }
             jsonPath("$.message") { value("Невозможно создать заказ -- есть занятые места") }
@@ -86,10 +95,13 @@ class OrderControllerTest {
             seatIds = listOf(3L),
             price = 900
         )
-        `when`(orderService.payTickets(10L)).thenReturn(orderDto)
+        `when`(jwtClaimsService.requireClaims("Bearer token"))
+            .thenReturn(JwtClaimsService.Claims(userId = 100L, role = "CUSTOMER", theatreId = null))
+        `when`(orderService.payTickets(10L, 100L)).thenReturn(orderDto)
 
         mockMvc.post("/api/orders/10/pay") {
             contentType = MediaType.APPLICATION_JSON
+            header("Authorization", "Bearer token")
         }.andExpect {
             status { isOk() }
             jsonPath("$.status") { value("PAID") }
@@ -98,10 +110,13 @@ class OrderControllerTest {
 
     @Test
     fun payTicketsNotFound() {
-        `when`(orderService.payTickets(10L)).thenThrow(OrderNotFoundException("Заказ не найден: id=10"))
+        `when`(jwtClaimsService.requireClaims("Bearer token"))
+            .thenReturn(JwtClaimsService.Claims(userId = 100L, role = "CUSTOMER", theatreId = null))
+        `when`(orderService.payTickets(10L, 100L)).thenThrow(OrderNotFoundException("Заказ не найден: id=10"))
 
         mockMvc.post("/api/orders/10/pay") {
             contentType = MediaType.APPLICATION_JSON
+            header("Authorization", "Bearer token")
         }.andExpect {
             status { isNotFound() }
             jsonPath("$.message") { value("Заказ не найден: id=10") }
@@ -110,10 +125,13 @@ class OrderControllerTest {
 
     @Test
     fun payTicketsIllegalState() {
-        `when`(orderService.payTickets(10L)).thenThrow(IllegalStateException("Заказ уже оплачен"))
+        `when`(jwtClaimsService.requireClaims("Bearer token"))
+            .thenReturn(JwtClaimsService.Claims(userId = 100L, role = "CUSTOMER", theatreId = null))
+        `when`(orderService.payTickets(10L, 100L)).thenThrow(IllegalStateException("Заказ уже оплачен"))
 
         mockMvc.post("/api/orders/10/pay") {
             contentType = MediaType.APPLICATION_JSON
+            header("Authorization", "Bearer token")
         }.andExpect {
             status { isConflict() }
             jsonPath("$.message") { value("Заказ уже оплачен") }
@@ -127,11 +145,14 @@ class OrderControllerTest {
             TicketDto(id = 2L, price = 900, raw = 1, number = 2)
         )
         val page = PageImpl(tickets, PageRequest.of(0, 2), 3)
-        `when`(orderService.getTicketsPageByOrderId(1L, 0, 2)).thenReturn(page)
+        `when`(jwtClaimsService.requireClaims("Bearer token"))
+            .thenReturn(JwtClaimsService.Claims(userId = 100L, role = "CUSTOMER", theatreId = null))
+        `when`(orderService.getTicketsPageByOrderId(1L, 0, 2, 100L, "CUSTOMER", null)).thenReturn(page)
 
         mockMvc.get("/api/orders/1/tickets") {
             param("page", "0")
             param("size", "2")
+            header("Authorization", "Bearer token")
         }.andExpect {
             status { isOk() }
             header { string("X-Has-Next-Page", "true") }
@@ -145,6 +166,7 @@ class OrderControllerTest {
         mockMvc.get("/api/orders/1/tickets") {
             param("page", "0")
             param("size", "3")
+            header("Authorization", "Bearer token")
         }.andExpect {
             status { isBadRequest() }
             jsonPath("$.message") { value("Page size must be <= 2") }

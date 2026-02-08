@@ -1,11 +1,11 @@
 spring:
-  jpa:
-    hibernate:
-      ddl-auto: none
-    show-sql: false
-  flyway:
-    enabled: false
-
+  cloud:
+    config:
+      enabled: false
+    discovery:
+      enabled: false
+  config:
+    import: "optional:configserver:"
 eureka:
   client:
     enabled: false

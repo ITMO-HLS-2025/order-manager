@@ -8,13 +8,14 @@ import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
 
 
-fun OrderPayload.toEntity(tickets: MutableList<Ticket>, price: Int): Order =
+fun OrderPayload.toEntity(tickets: MutableList<Ticket>, price: Int, userId: Long): Order =
     Order(
         id = 0,
         createdAt = LocalDateTime.now(),
         reservedAt = LocalDateTime.now().plus(90, ChronoUnit.MINUTES),
         tickets = tickets,
-        sumPrice = price
+        sumPrice = price,
+        userId = userId
     )
 
 fun Order.toDto(): OrderDto =

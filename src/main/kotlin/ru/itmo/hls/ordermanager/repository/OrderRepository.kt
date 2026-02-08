@@ -12,4 +12,6 @@ interface OrderRepository : JpaRepository<Order, Long> {
     @Query("SELECT e FROM Order e join fetch e.tickets WHERE e.status = :status AND e.reservedAt <= :reservedAt")
     fun findAllByStatusAndReservedAtBefore(status: OrderStatus, reservedAt: LocalDateTime) : List<Order>
     fun findOrderById(id: Long): Order?
+    fun findOrderByIdAndUserId(id: Long, userId: Long): Order?
+    fun existsByIdAndUserId(id: Long, userId: Long): Boolean
 }
