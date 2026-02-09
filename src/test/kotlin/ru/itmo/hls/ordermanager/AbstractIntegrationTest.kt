@@ -4,12 +4,12 @@ import org.junit.jupiter.api.BeforeEach
 import org.mockito.ArgumentMatchers
 import org.mockito.Mockito
 import org.springframework.test.context.bean.override.mockito.MockitoBean
-import ru.itmo.hls.ordermanager.client.SeatFeignClient
-import ru.itmo.hls.ordermanager.client.ShowFeignClient
-import ru.itmo.hls.ordermanager.service.PostgresContainerConfig
-import ru.itmo.hls.ordermanager.dto.SeatPriceDto
-import ru.itmo.hls.ordermanager.dto.ShowAccessDto
-import ru.itmo.hls.ordermanager.dto.TheatreAccessDto
+import ru.itmo.hls.ordermanager.infrastructure.client.SeatFeignClient
+import ru.itmo.hls.ordermanager.infrastructure.client.ShowFeignClient
+import ru.itmo.hls.ordermanager.testconfig.PostgresContainerConfig
+import ru.itmo.hls.ordermanager.application.dto.SeatPriceDto
+import ru.itmo.hls.ordermanager.application.dto.ShowAccessDto
+import ru.itmo.hls.ordermanager.application.dto.TheatreAccessDto
 abstract class AbstractIntegrationTest : PostgresContainerConfig() {
 
     @MockitoBean

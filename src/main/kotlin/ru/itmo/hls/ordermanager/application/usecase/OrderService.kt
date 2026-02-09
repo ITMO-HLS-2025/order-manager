@@ -1,0 +1,238 @@
+package ru.itmo.hls.ordermanager.application.usecase
+
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageRequest
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.http.HttpStatus
+import org.springframework.web.server.ResponseStatusException
+import ru.itmo.hls.ordermanager.application.dto.OrderDto
+import ru.itmo.hls.ordermanager.application.dto.OrderPaidEvent
+import ru.itmo.hls.ordermanager.application.dto.OrderPayload
+import ru.itmo.hls.ordermanager.application.dto.TicketDto
+import ru.itmo.hls.ordermanager.application.mapper.toDto
+import ru.itmo.hls.ordermanager.application.mapper.toEntity
+import ru.itmo.hls.ordermanager.application.port.OrderEventsPublisher
+import ru.itmo.hls.ordermanager.application.port.SeatClient
+import ru.itmo.hls.ordermanager.application.port.ShowClient
+import ru.itmo.hls.ordermanager.domain.exception.NotFreeSeatException
+import ru.itmo.hls.ordermanager.domain.exception.OrderNotFoundException
+import ru.itmo.hls.ordermanager.domain.model.OrderStatus
+import ru.itmo.hls.ordermanager.domain.model.TicketStatus
+import ru.itmo.hls.ordermanager.domain.port.OrderRepository
+import java.time.LocalDateTime
+import kotlin.collections.map
+import kotlin.collections.sumOf
+import kotlin.collections.toMutableList
+
+@Service
+@Transactional
+open class OrderService(
+    private val orderRepository: OrderRepository,
+    private val ticketService: TicketService,
+    private val seatClient: SeatClient,
+    private val showClient: ShowClient,
+    private val orderEventsPublisher: OrderEventsPublisher
+) {
+
+    private val log: Logger = LoggerFactory.getLogger(OrderService::class.java)
+
+    open fun reserveTickets(orderPayload: OrderPayload, userId: Long): OrderDto {
+        log.info("Резервирование билетов для шоу id={} и мест {}", orderPayload.showId, orderPayload.seatIds)
+
+        val seatsPrice = seatClient.getSeat(orderPayload.showId, orderPayload.seatIds)
+        if (seatsPrice.size != orderPayload.seatIds.size) {
+            throw IllegalArgumentException(
+                "Seat prices not found for showId=${orderPayload.showId}, seats=${orderPayload.seatIds}"
+            )
+        }
+        val tickets = ticketService.findAllBySeatIdInAndShowId(
+            orderPayload.seatIds,
+            orderPayload.showId
+        )
+        if (tickets.isNotEmpty()) {
+            log.warn("Невозможно создать заказ — места заняты: {}", orderPayload.seatIds)
+            throw NotFreeSeatException("Невозможно создать заказ -- есть занятые места")
+        }
+
+        val ticketsEntity = seatsPrice.map { it.toEntity(orderPayload.showId) }.toMutableList()
+        val sumOf = seatsPrice.sumOf { it.price }
+
+        val order = orderPayload.toEntity(ticketsEntity, sumOf, userId)
+        order.tickets = ticketsEntity
+        orderRepository.save(order)
+
+        log.info("Заказ создан успешно: orderId={}, сумма={}", order.id, sumOf)
+        return order.toDto()
+    }
+
+    open fun cancelExpiredOrders() {
+        val now = LocalDateTime.now()
+        val expired = orderRepository.findAllByStatusAndReservedAtBefore(OrderStatus.RESERVED, now)
+
+        log.info("Автоотмена заказов. Найдено просроченных заказов: {}", expired.size)
+
+        expired.forEach { order ->
+            order.status = OrderStatus.CANCELLED
+            order.tickets.forEach { ticket ->
+                ticket.status = TicketStatus.CANCELLED
+                ticketService.save(ticket)
+            }
+            orderRepository.save(order)
+            log.info("Заказ {} автоматически отменён", order.id)
+        }
+    }
+
+    @Transactional
+    open fun payTickets(orderId: Long, userId: Long): OrderDto {
+        log.info("Оплата заказа id={}", orderId)
+
+        val order = orderRepository.findOrderByIdAndUserId(orderId, userId)
+            ?: throw OrderNotFoundException("Заказ не найден: id=$orderId")
+
+        order.tickets = ticketService.findAllByOrder(order.id).toMutableList()
+
+        if (order.status == OrderStatus.PAID) {
+            log.warn("Заказ {} уже оплачен", orderId)
+            throw kotlin.IllegalStateException("Заказ уже оплачен")
+        }
+
+        val now = LocalDateTime.now()
+        if (order.reservedAt != null && order.reservedAt!!.isBefore(now)) {
+            order.status = OrderStatus.CANCELLED
+            order.tickets.forEach {
+                it.status = TicketStatus.CANCELLED
+                ticketService.save(it)
+            }
+            orderRepository.save(order)
+            log.warn("Время оплаты истекло — заказ {} автоматически отменён", orderId)
+            throw kotlin.IllegalStateException("Время оплаты истекло — заказ автоматически отменён")
+        }
+
+        order.status = OrderStatus.PAID
+        order.tickets.forEach { ticket ->
+            ticket.status = TicketStatus.PAID
+            ticketService.save(ticket)
+        }
+
+        val saved = orderRepository.save(order)
+        saved.tickets = order.tickets
+
+        log.info("Заказ {} оплачен успешно", orderId)
+        val eventTickets = saved.tickets.map { ticket ->
+            OrderPaidEvent.OrderPaidTicket(
+                ticketId = ticket.id,
+                showId = ticket.showId,
+                seatId = ticket.seatId
+            )
+        }
+        orderEventsPublisher.publishOrderPaid(
+            OrderPaidEvent(
+                orderId = saved.id,
+                userId = saved.userId,
+                tickets = eventTickets
+            )
+        )
+        return saved.toDto()
+    }
+
+    open fun getTicketsPageByOrderId(
+        orderId: Long,
+        page: Int,
+        size: Int,
+        userId: Long,
+        role: String,
+        theatreId: Long?
+    ): Page<TicketDto> {
+        log.info("Получение билетов по заказу id={}, страница={}, размер страницы={}", orderId, page, size)
+
+        val order = orderRepository.findOrderById(orderId)
+            ?: run {
+                log.warn("Заказ {} не найден при получении билетов", orderId)
+                throw OrderNotFoundException("Заказ не найден: id=$orderId")
+            }
+        val pageable = PageRequest.of(page, size)
+        val ticketPage = ticketService.findAllByOrder(orderId, pageable)
+        if (ticketPage.isEmpty) {
+            log.info("Билеты не найдены для заказа {}", orderId)
+            return Page.empty<TicketDto>(pageable)
+        }
+
+        val showIds = ticketPage.content.map { it.showId }.distinct()
+        if (showIds.size != 1) {
+            throw IllegalStateException("Tickets from multiple shows in one order: $showIds")
+        }
+        val showId = showIds.first()
+        authorizeOrderRead(order, userId, role, theatreId, showId)
+        val seatIds = ticketPage.content.map { ticket ->
+            ticket.seatId ?: throw IllegalStateException("Ticket ${ticket.id} doesn't have seatId")
+        }
+        val seats = seatClient.getSeat(showId, seatIds)
+        val seatInfoById = seats.associateBy { it.id }
+
+        log.info("Найдено билетов: {} для заказа {}", ticketPage.totalElements, orderId)
+        return ticketPage.map { ticket ->
+            val seatId = ticket.seatId
+                ?: throw IllegalStateException("Ticket ${ticket.id} doesn't have seatId")
+            val seat = seatInfoById[seatId]
+                ?: throw IllegalStateException("Seat info not found for showId=$showId, seatId=$seatId")
+            TicketDto(
+                id = ticket.id,
+                price = seat.price,
+                raw = seat.raw,
+                number = seat.number
+            )
+        }
+    }
+
+    open fun getOrderById(
+        orderId: Long,
+        userId: Long,
+        role: String,
+        theatreId: Long?
+    ): OrderDto {
+        log.info("Получение заказа id={}", orderId)
+
+        val order = orderRepository.findOrderById(orderId)
+            ?: throw OrderNotFoundException("Заказ не найден: id=$orderId")
+        order.tickets = ticketService.findAllByOrder(order.id).toMutableList()
+        val showIds = order.tickets.map { it.showId }.distinct()
+        if (showIds.size != 1) {
+            throw IllegalStateException("Tickets from multiple shows in one order: $showIds")
+        }
+        authorizeOrderRead(order, userId, role, theatreId, showIds.first())
+        return order.toDto()
+    }
+
+    private fun authorizeOrderRead(
+        order: ru.itmo.hls.ordermanager.domain.model.Order,
+        userId: Long,
+        role: String,
+        theatreId: Long?,
+        showId: Long?
+    ) {
+        if (order.userId == userId) return
+        if (role == "ADMIN") return
+        if (role == "THEATRE_DIRECTOR") {
+            if (showId == null) {
+                throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing show context for theatre access")
+            }
+            requireTheatreAccess(showId, theatreId)
+            return
+        }
+        throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not allowed to access this order")
+    }
+
+    private fun requireTheatreAccess(showId: Long, theatreId: Long?) {
+        if (theatreId == null) {
+            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing theatreId for theatre director")
+        }
+        val show = showClient.getShow(showId)
+        val showTheatreId = show.theatre?.id
+        if (showTheatreId == null || showTheatreId != theatreId) {
+            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not allowed to access this theatre order")
+        }
+    }
+}
