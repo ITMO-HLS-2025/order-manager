@@ -4,7 +4,6 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
-import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.http.HttpStatus
@@ -32,7 +31,8 @@ open class OrderService(
     private val orderRepository: OrderRepository,
     private val ticketService: TicketService,
     private val seatFeignClient: SeatFeignClient,
-    private val showFeignClient: ShowFeignClient
+    private val showFeignClient: ShowFeignClient,
+    private val orderEventsPublisher: OrderEventsPublisher
 ) {
 
     private val log: Logger = LoggerFactory.getLogger(OrderService::class.java)
@@ -66,7 +66,6 @@ open class OrderService(
         return order.toDto()
     }
 
-    @Scheduled(fixedRate = 60_000)
     open fun cancelExpiredOrders() {
         val now = LocalDateTime.now()
         val expired = orderRepository.findAllByStatusAndReservedAtBefore(OrderStatus.RESERVED, now)
@@ -120,6 +119,20 @@ open class OrderService(
         saved.tickets = order.tickets
 
         log.info("Заказ {} оплачен успешно", orderId)
+        val eventTickets = saved.tickets.map { ticket ->
+            ru.itmo.hls.ordermanager.dto.OrderPaidEvent.OrderPaidTicket(
+                ticketId = ticket.id,
+                showId = ticket.showId,
+                seatId = ticket.seatId
+            )
+        }
+        orderEventsPublisher.publishOrderPaid(
+            ru.itmo.hls.ordermanager.dto.OrderPaidEvent(
+                orderId = saved.id,
+                userId = saved.userId,
+                tickets = eventTickets
+            )
+        )
         return saved.toDto()
     }
 
